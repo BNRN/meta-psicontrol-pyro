@@ -1,0 +1,417 @@
+From 2e982301fa40e4485c0612b2e07f8dcd5c04c05b Mon Sep 17 00:00:00 2001
+From: Brecht Neyrinck <bnrn@psicontrol.com>
+Date: Thu, 2 Apr 2015 11:09:30 +0200
+Subject: [PATCH] implemented SMI protocol over MDIO using temporary bitbang
+
+---
+ drivers/net/ethernet/freescale/fec_main.c | 337 ++++++++++++++++++++++++++++--
+ 1 file changed, 322 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/net/ethernet/freescale/fec_main.c b/drivers/net/ethernet/freescale/fec_main.c
+index 1b5674a..9377e9a 100644
+--- a/drivers/net/ethernet/freescale/fec_main.c
++++ b/drivers/net/ethernet/freescale/fec_main.c
+@@ -60,9 +60,101 @@
+ #include <linux/version.h>
+ 
+ #include <asm/cacheflush.h>
++#include <asm/errno.h>
++#include <asm/gpio.h>
+ 
+ #include "fec.h"
+ 
++
++/* There's a off-by-one between the gpio bank number and the gpiochip */
++/* range e.g. GPIO_1_5 is gpio 5 under linux */
++#define IMX_GPIO_NR(bank, nr)		(((bank) - 1) * 32 + (nr))
++
++
++
++/* ENET_MDC
++   HYS - enabled
++   PUS - 100k_ohm_pu
++   PUE - pull
++   PKE - enabled
++   ODE - disabled
++   SPEED - 100 MHz
++   DSE - 40 Ohm
++   SRE - slow
++   
++   0000 0000 0000 0001  1011 0000 1011 0000
++*/  
++#define ENET_MDC_PAD_CTRL   0x0001B0B0
++
++/* GPIO
++   HYS - enabled
++   PUS - 100k_ohm_pu
++   PUE - pull
++   PKE - enabled
++   ODE - disabled
++   SPEED - 100 MHz
++   DSE - 40 Ohm
++   SRE - slow
++   
++   0000 0000 0000 0001  1011 0000 1011 0000
++*/  
++#define GPIO_1_IO_31_PAD_CTRL   0x0001B0B0
++#define GPIO_1_IO_22_PAD_CTRL   0x0001B0B0
++
++/* ENET_MDIO
++   HYS - enabled
++   PUS - 100k_ohm_pu
++   PUE - pull
++   PKE - enabled
++   ODE - disabled
++   SPEED - 100 MHz
++   DSE - 40 Ohm
++   SRE - slow
++   
++   0000 0000 0000 0001  1011 0000 1011 0000
++*/  
++#define ENET_MDIO_PAD_CTRL   0x0001B0B0
++
++												 
++#define PAD_ENET_MDC__GPIO1_IO31     0x1e8, 0x05, 0x5b8, GPIO_1_IO_31_PAD_CTRL      
++
++#define PAD_ENET_MDC__ENET_MDC       0x1e8, 0x01, 0x5b8, ENET_MDC_PAD_CTRL
++
++#define PAD_ENET_MDIO__GPIO1_IO22    0x1ec, 0x05, 0x5bc, GPIO_1_IO_22_PAD_CTRL  
++
++#define PAD_ENET_MDIO__ENET_MDIO     0x1ec, 0x01, 0x5bc,  ENET_MDIO_PAD_CTRL
++
++#define IOMUXC_BASE_ADDR 0x020e0000 
++
++/* Minimum MDC period is 400 ns, plus some margin for error.  MDIO_DELAY
++ * is done twice per period.
++ */
++#define MDIO_DELAY 250
++
++/* The PHY may take up to 300 ns to produce data, plus some margin
++ * for error.
++ */
++#define MDIO_READ_DELAY 350
++
++
++static void *base = (void *)NULL;
++
++/*
++ * configures a single pad in the iomuxer
++ */
++static void setup_pad(u32 mux_ctrl_ofs, u32 mux_mode, u32 pad_ctrl_ofs, u32 pad_ctrl)
++{
++
++	if (mux_ctrl_ofs)
++		writel(mux_mode, base + mux_ctrl_ofs);
++
++	if (pad_ctrl_ofs)
++		writel(pad_ctrl, base + pad_ctrl_ofs);
++}
++
++
++
++
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+ #include <linux/busfreq-imx6.h>
+ #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+@@ -228,8 +320,12 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
+ #define FEC_MMFR_ST		(1 << 30)
+ #define FEC_MMFR_OP_READ	(2 << 28)
+ #define FEC_MMFR_OP_WRITE	(1 << 28)
++#define FEC_MMFR_OP_SMI_READ	(3 << 28)
++#define FEC_MMFR_OP_SMI_WRITE	(0 << 28)
+ #define FEC_MMFR_PA(v)		((v & 0x1f) << 23)
+ #define FEC_MMFR_RA(v)		((v & 0x1f) << 18)
++#define FEC_MMFR_RA_SPECIAL(v)		(((v | 0x200) & 0x2ff) << 18)
++#define FEC_MMFR_WA_SPECIAL(v)		((v & 0xff) << 18)
+ #define FEC_MMFR_TA		(2 << 16)
+ #define FEC_MMFR_DATA(v)	(v & 0xffff)
+ 
+@@ -1201,18 +1297,211 @@ static void fec_enet_adjust_link(struct net_device *ndev)
+ 		phy_print_status(phy_dev);
+ }
+ 
++
++static void mdio_write_clock_pin( unsigned int value)
++{
++
++	setup_pad( PAD_ENET_MDC__GPIO1_IO31);
++	gpio_request(IMX_GPIO_NR(1, 31), "gpio_1_31");
++    if (value == 0)   
++       gpio_direction_output(IMX_GPIO_NR(1, 31), 0);
++	 else
++       gpio_direction_output(IMX_GPIO_NR(1, 31), 1);
++	gpio_free(IMX_GPIO_NR(1, 31));
++	   
++}
++
++static void mdio_restore_clock_pin( )
++{
++
++	setup_pad( PAD_ENET_MDC__ENET_MDC);
++}
++
++static void mdio_write_data_pin( unsigned int value)
++{
++    setup_pad( PAD_ENET_MDIO__GPIO1_IO22);
++	gpio_request(IMX_GPIO_NR(1, 22), "gpio_1_22");
++    if (value == 0)   
++       gpio_direction_output(IMX_GPIO_NR(1, 22), 0);
++    else
++       gpio_direction_output(IMX_GPIO_NR(1, 22), 1);
++	gpio_free(IMX_GPIO_NR(1, 22));
++
++}
++
++static void mdio_read_data_pin( u16 *value)
++{
++    setup_pad( PAD_ENET_MDIO__GPIO1_IO22);
++	gpio_request(IMX_GPIO_NR(1, 22), "gpio_1_22"); 
++    gpio_direction_input(IMX_GPIO_NR(1, 22));
++    if (gpio_get_value(IMX_GPIO_NR(1, 22)) == 0)
++	  *value = 0;
++	else
++       *value = 1;	
++	gpio_free(IMX_GPIO_NR(1, 22));
++
++ }
++
++static void mdio_restore_data_pin( )
++{
++
++	setup_pad(PAD_ENET_MDIO__ENET_MDIO);
++}
++
++
++static void mdiobb_send_bit( u16 val)
++{
++    mdio_write_data_pin(val);
++	ndelay(MDIO_DELAY);
++    mdio_write_clock_pin(1);
++	ndelay(MDIO_DELAY);
++    mdio_write_clock_pin(0);
++}
++
++
++
++static void mdiobb_send_num(u16 val, int bits)
++{
++	int i;
++
++	for (i = bits - 1; i >= 0; i--)
++		mdiobb_send_bit((val >> i) & 1);
++}
++
++static u16 mdiobb_get_bit()
++{
++    u16 val;
++	
++	ndelay(MDIO_DELAY);
++    mdio_write_clock_pin(1);
++	ndelay(MDIO_READ_DELAY);
++    mdio_write_clock_pin(0);
++    mdio_read_data_pin( &val);
++	return val;
++}
++
++static u16 mdiobb_get_num(int bits)
++{
++	int i;
++	u16 ret = 0;
++
++	for (i = bits - 1; i >= 0; i--) {
++		ret <<= 1;
++		ret |= mdiobb_get_bit();
++	}
++	return ret;
++}
++
++
++static u16 mdiobb_read_smi_reg( u16 reg)
++{
++    u16 ret;
++	u16 i;
++	
++    mdio_write_data_pin(1);
++    mdio_write_clock_pin(0);
++
++	/*
++	 * Send a 32 bit preamble ('1's)
++	 */
++
++	for (i = 0; i < 32; i++)
++		mdiobb_send_bit(1);
++
++	/* send the start bit (01) and the read opcode (00)  SMI protocol 
++	*/
++	mdiobb_send_bit(0);
++	mdiobb_send_bit(1);
++
++	mdiobb_send_bit(0);
++	mdiobb_send_bit(0);
++
++	mdiobb_send_bit(1);    /*  when SMI read */
++	mdiobb_send_bit(0);
++
++	mdiobb_send_num(reg, 8);  /* register number   */
++	
++	mdiobb_get_bit();    /* turn around */
++
++	ret = mdiobb_get_num(16);
++	mdiobb_get_bit();    /* idle */
++	return ret;
++
++}
++
++static void mdiobb_write_smi_reg( u16 reg, u16 data)
++{
++	u16 i;
++	
++    mdio_write_data_pin(1);
++    mdio_write_clock_pin(0);
++
++	/*
++	 * Send a 32 bit preamble ('1's)
++	 */
++
++	for (i = 0; i < 32; i++)
++		mdiobb_send_bit(1);
++
++	/* send the start bit (01) and the write opcode (00)  SMI protocol 
++	*/
++	mdiobb_send_bit(0);
++	mdiobb_send_bit(1);
++
++	mdiobb_send_bit(0);
++	mdiobb_send_bit(0);
++
++	mdiobb_send_bit(0);    /*  when SMI write  */
++	mdiobb_send_bit(0);
++
++	mdiobb_send_num(reg, 8);  /* register number   */
++	
++	/* send the turnaround (10) */
++	mdiobb_send_bit(1);
++	mdiobb_send_bit(0);
++
++	mdiobb_send_num(data, 16);
++	
++	mdiobb_get_bit();    /* idle */
++}
++
++
++
++
+ static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
+ {
+ 	struct fec_enet_private *fep = bus->priv;
+ 	unsigned long time_left;
+-
++    int value;
++	
+ 	fep->mii_timeout = 0;
+ 	init_completion(&fep->mdio_done);
++	
+ 
+ 	/* start a read op */
+-	writel(FEC_MMFR_ST | FEC_MMFR_OP_READ |
+-		FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
+-		FEC_MMFR_TA, fep->hwp + FEC_MII_DATA);
++    if (regnum < 100)
++    {
++
++        writel(FEC_MMFR_ST | FEC_MMFR_OP_READ |
++            FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
++            FEC_MMFR_TA, fep->hwp + FEC_MII_DATA);
++    }
++    else
++    {
++	    if(regnum == 1000)
++		{
++			pr_info("link:%d\n", fep->link);
++			pr_info("full duplex:%d\n", fep->full_duplex);
++			pr_info("speed:%d\n", fep->speed);
++			pr_info("pause_flag:0x%x\n", fep->pause_flag);
++		    return 0;
++		}
++		regnum -= 100;
++	    value = mdiobb_read_smi_reg(regnum);
++	    mdio_restore_clock_pin();
++		mdio_restore_data_pin();
++		return value;
++    }
+ 
+ 	/* wait for end of transfer */
+ 	time_left = wait_for_completion_timeout(&fep->mdio_done,
+@@ -1233,14 +1522,27 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
+ 	struct fec_enet_private *fep = bus->priv;
+ 	unsigned long time_left;
+ 
++
+ 	fep->mii_timeout = 0;
+ 	init_completion(&fep->mdio_done);
+ 
+ 	/* start a write op */
+-	writel(FEC_MMFR_ST | FEC_MMFR_OP_WRITE |
+-		FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
+-		FEC_MMFR_TA | FEC_MMFR_DATA(value),
+-		fep->hwp + FEC_MII_DATA);
++    if (regnum < 100)
++    {
++        writel(FEC_MMFR_ST | FEC_MMFR_OP_WRITE |
++            FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
++            FEC_MMFR_TA | FEC_MMFR_DATA(value),
++            fep->hwp + FEC_MII_DATA);
++    }
++    else
++    {
++        regnum -= 100;
++		mdiobb_write_smi_reg(regnum, value);
++	    mdio_restore_clock_pin();
++		mdio_restore_data_pin();
++		return 0;
++	
++    }
+ 
+ 	/* wait for end of transfer */
+ 	time_left = wait_for_completion_timeout(&fep->mdio_done,
+@@ -1696,18 +1998,18 @@ static int fec_enet_ioctl(struct net_device *ndev, struct ifreq *rq, int cmd)
+ 	struct phy_device *phydev = fep->phy_dev;
+ 
+ 	if (!netif_running(ndev))
+-		return -EINVAL;
+-
++		return -EINVAL;	
++		
+ 	if (!phydev)
+ 		return -ENODEV;
+-
++		
+ 	if (((cmd == SIOCSHWTSTAMP) || ((cmd >= PTP_ENBL_TXTS_IOCTL) &&
+ 		(cmd <= PTP_FLUSH_TIMESTAMP))) && fep->bufdesc_ex)
+ 		return fec_ptp_ioctl(ndev, rq, cmd);
+-	else if (fep->bufdesc_ex)
+-		return -ENODEV;
+-
+-	return phy_mii_ioctl(phydev, rq, cmd);
++	else if (fep->bufdesc_ex)	
++		return phy_mii_ioctl(phydev, rq, cmd);		
++		
++	return -ENODEV;
+ }
+ 
+ static void fec_enet_free_buffers(struct net_device *ndev)
+@@ -2182,6 +2484,11 @@ fec_probe(struct platform_device *pdev)
+ 		ret = PTR_ERR(fep->hwp);
+ 		goto failed_ioremap;
+ 	}
++	
++	base =  ioremap(IOMUXC_BASE_ADDR, 0x0940);  /* used by SMI interface on MDIO  */
++	if (!base) {
++		return -ENXIO;
++	}
+ 
+ 	fep->pdev = pdev;
+ 	fep->dev_id = dev_id++;
+-- 
+1.8.2.3
+

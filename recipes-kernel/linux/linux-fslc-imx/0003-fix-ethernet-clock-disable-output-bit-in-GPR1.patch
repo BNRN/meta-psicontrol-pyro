@@ -1,0 +1,25 @@
+From 687cceb65a406c315c0c576774f3778966a4479f Mon Sep 17 00:00:00 2001
+From: Brecht Neyrinck <bnrn@psicontrol.com>
+Date: Wed, 24 Jun 2015 17:55:28 +0200
+Subject: [PATCH] fix ethernet clock: disable output bit in GPR1
+
+---
+ arch/arm/mach-imx/mach-imx6q.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/mach-imx/mach-imx6q.c b/arch/arm/mach-imx/mach-imx6q.c
+index 5fb11af..9d51caa 100644
+--- a/arch/arm/mach-imx/mach-imx6q.c
++++ b/arch/arm/mach-imx/mach-imx6q.c
+@@ -196,7 +196,7 @@ static void __init imx6q_1588_init(void)
+ 	if (!IS_ERR(gpr))
+ 		regmap_update_bits(gpr, IOMUXC_GPR1,
+ 				IMX6Q_GPR1_ENET_CLK_SEL_MASK,
+-				IMX6Q_GPR1_ENET_CLK_SEL_ANATOP);
++				0);
+ 	else
+ 		pr_err("failed to find fsl,imx6q-iomux-gpr regmap\n");
+ 
+-- 
+1.8.2.3
+

@@ -1,0 +1,20 @@
+This Yocto layer contains all recipes for the PeterSime-IHMI BSP:
+
+Version info: see recipes-core/psi-version/files/version
+
+Containing elements:
+- Uboot binary to program in flash
+    + display of bitmap when no SD or USB is inserted
+- kernel config & device tree for linux-3.10.17 
+    + patch for the micrel ksz8873 switch
+    + patch for MDIO SMI protocol
+    + patch for the ethernet clock
+- userspace touchscreen driver + config
+- userspace init script + modprobe blacklist config
+- userspace VLAN configuration to provide 2 ETH
+    + patch for hotplugging
+    
+
+Need to add in the local.conf of your build:
+IMAGE_INSTALL_append = "modprobe-blacklist fsl-rc-local eGTouchD"
+please adapt rc.local accordingly

@@ -1,0 +1,47 @@
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+
+# start the touchscreen driver
+/usr/bin/eGTouchD &
+
+# make sure fonts are available
+ln -s /usr/share/fonts /usr/lib/fonts
+
+# prevent the screen from going black
+echo -e '\033[9;0]' > /dev/tty1
+
+#set backlight full screen
+echo 7 > /sys/class/backlight/backlight/brightness
+
+# wait to make sure the touchscreen driver is fully started and provides /dev/input/touchscreen0
+sleep 20s
+
+# hide the mouse cursor
+export QT_QPA_EGLFS_HIDECURSOR=1
+
+# hide the keyboard cursor
+echo 0 > /sys/class/graphics/fbcon/cursor_blink
+
+# set the correct touchscreen device for Tslib
+export TSLIB_TSDEVICE=/dev/input/touchscreen0
+
+#mfill -b 0x2640008 -p 0x00020001 -l 0x4 -4
+
+# launch the Qt5 application using the OpenGL ES 2.0 driver and the Tslib plugin
+#cd /usr/share/qtdemo-10inch-1.0
+#./PsiControlDemo  -platform eglfs -plugin evdevtouch:/dev/input/event0 &
+
+export DISPLAY=:0
+Qt5_CinematicExperience -platform xcb -plugin Tslib > /tmp/cinematicexperience.log 2>&1 &
+
+exit 0

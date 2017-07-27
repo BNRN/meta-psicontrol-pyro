@@ -1,0 +1,19 @@
+#!/bin/bash
+
+export PRODUCT_ID_NUMBER=14049  #<product_id_number>
+export PRODUCT_VERSION_NUMBER=0      #<product_version_number>
+export PRODUCT_REVISION_NUMBER=0      #<product_revision_number>
+export PRODUCT_TEST_NUMBER=12      #<product_test_number>
+
+echo "Uboot version:"
+dd if=/dev/mtd0 bs=1k skip=1 count=500 2>/dev/null | strings -n 16 | grep "U-Boot 20" | grep "+"
+
+echo 
+echo Kernel version:
+
+echo "`uname -a`"
+
+echo
+echo Product version:
+
+echo "$PRODUCT_ID_NUMBER.$PRODUCT_VERSION_NUMBER.$PRODUCT_REVISION_NUMBER.$PRODUCT_TEST_NUMBER - PeterSime iHMI"

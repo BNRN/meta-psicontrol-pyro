@@ -1,0 +1,97 @@
+MACHINE ??= 'petersime-ihmi'
+DISTRO ?= 'poky'
+PACKAGE_CLASSES ?= "package_rpm"
+EXTRA_IMAGE_FEATURES = "debug-tweaks"
+#IMAGE_INSTALL_append = "qtbase qtbase-fonts qtbase-plugins qtbase-examples cinematicexperience"
+IMAGE_INSTALL_append = " gcc g++ binutils libgcc libgcc-dev libstdc++ libstdc++-dev libstdc++-staticdev \
+autoconf automake ccache chkconfig glib-networking glibmm \
+packagegroup-core-buildessential pkgconfig  \
+boost cmake zlib glib-2.0 packagegroup-fsl-tools-testapps  \
+    ruby \
+    cpufrequtils \
+    nano \
+    gdb \
+    gstreamer \
+    gst-meta-video \
+    gst-fsl-plugin \
+    gst-plugins-base-app \
+    gst-plugins-base \
+    gst-plugins-good \
+    gst-plugins-good-rtsp \
+    gst-plugins-good-udp \
+    gst-plugins-good-rtpmanager \
+    gst-plugins-good-rtp \
+    gst-plugins-good-video4linux2 \
+    openssh-sftp-server \
+    packagegroup-fsl-gstreamer \
+    packagegroup-fsl-tools-testapps \
+    packagegroup-fsl-tools-benchmark \
+    imx-vpu \
+    imx-test \    	
+    qtbase-fonts \
+    qtbase-plugins \
+    qtbase-tools \
+    qtbase-examples \
+    qtdeclarative \
+    qtdeclarative-plugins \
+    qtdeclarative-tools \
+    qtdeclarative-examples \
+    qtdeclarative-qmlplugins \
+    qtmultimedia \
+    qtmultimedia-plugins \
+    qtmultimedia-examples \
+    qtmultimedia-qmlplugins \
+    qtsvg \
+    qtsvg-plugins \
+    qtsensors \
+    qtimageformats-plugins \
+    qtsystems \
+    qtsystems-tools \
+    qtsystems-examples \
+    qtsystems-qmlplugins \
+    qtscript \
+    qt3d \
+    qt3d-examples \
+    qt3d-qmlplugins \
+    qt3d-tools \
+    qtwebkit \
+    qtwebkit-examples-examples \
+    qtwebkit-qmlplugins \
+    qtgraphicaleffects-qmlplugins \
+    qtconnectivity-qmlplugins \
+    qtlocation-plugins \
+    qtlocation-qmlplugins \
+    cinematicexperience \
+    cairo pango fontconfig freetype pulseaudio dbus \
+    i2c-tools \ 
+    openssh \
+    strace \  
+    ldd \
+    modprobe-blacklist \
+    fsl-rc-local \
+    eGTouchD \
+    mii-reg \
+    vlan-scripts \
+    "
+
+
+DISTRO_FEATURES_remove = "wayland x11"
+USER_CLASSES ?= "buildstats image-mklibs image-prelink"
+PATCHRESOLVE = "noop"
+BB_DISKMON_DIRS = "\
+    STOPTASKS,${TMPDIR},1G,100K \
+    STOPTASKS,${DL_DIR},1G,100K \
+    STOPTASKS,${SSTATE_DIR},1G,100K \
+    ABORT,${TMPDIR},100M,1K \
+    ABORT,${DL_DIR},100M,1K \
+    ABORT,${SSTATE_DIR},100M,1K" 
+PACKAGECONFIG_append_pn-qemu-native = " sdl"
+PACKAGECONFIG_append_pn-nativesdk-qemu = " sdl"
+ASSUME_PROVIDED += "libsdl-native"
+CONF_VERSION = "1"
+
+BB_NUMBER_THREADS = '20'
+PARALLEL_MAKE = '-j 20'
+
+DL_DIR ?= "${BSPDIR}/downloads/"
+ACCEPT_FSL_EULA = ""

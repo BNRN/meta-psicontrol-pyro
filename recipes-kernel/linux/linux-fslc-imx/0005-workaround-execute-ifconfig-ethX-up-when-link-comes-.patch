@@ -1,0 +1,167 @@
+From 2ab7fc8e41ec9886f676509d8c07f77f5861a6cf Mon Sep 17 00:00:00 2001
+From: Brecht Neyrinck <bnrn@psicontrol.com>
+Date: Thu, 13 Aug 2015 11:46:04 +0200
+Subject: [PATCH] workaround: execute ifconfig ethX up when link comes up
+
+---
+ include/linux/phy.h | 123 +++++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 117 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/phy.h b/include/linux/phy.h
+index 7e86765..739190b 100755
+--- a/include/linux/phy.h
++++ b/include/linux/phy.h
+@@ -25,8 +25,16 @@
+ #include <linux/workqueue.h>
+ #include <linux/mod_devicetable.h>
+ 
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/proc_fs.h>
++#include <asm/uaccess.h>
++
++
+ #include <linux/atomic.h>
+ 
++
+ #define PHY_BASIC_FEATURES	(SUPPORTED_10baseT_Half | \
+ 				 SUPPORTED_10baseT_Full | \
+ 				 SUPPORTED_100baseT_Half | \
+@@ -479,6 +487,33 @@ struct phy_fixup {
+ 	int (*run)(struct phy_device *phydev);
+ };
+ 
++
++static inline int usermodehelper(char * interface)
++{
++	int ret = 0;
++	char *envp[] = {"HOME=/", "PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin", NULL };
++	char *argv[4];
++
++	argv[0] = "/sbin/ifconfig";
++	argv[1] = interface;
++	argv[2] = "up";
++	argv[3] = NULL ;
++	
++	/* printk("usermodehelper %s up\n", interface);  */
++	
++	/* last parameter: 1 -> wait until execution has finished, 0 go ahead without waiting*/
++	/* returns 0 if usermode process was started successfully, errorvalue otherwise*/
++	/* no possiblity to get return value of usermode process*/
++	ret = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_EXEC);
++	/*
++	if (ret != 0)
++		printk("error in call to usermodehelper: %i\n", ret);
++	else
++		printk("everything all right\n");
++	*/	
++    return 0;
++}
++
+ /**
+  * phy_read - Convenience function for reading a given PHY register
+  * @phydev: the phy_device struct
+@@ -488,17 +523,93 @@ struct phy_fixup {
+  * because the bus read/write functions may wait for an interrupt
+  * to conclude the operation.
+  */
++ 
++#define LINK_UP_IFCONFIG_ETH1_UP   3
++#define LINK_UP_IFCONFIG_ETH0_UP   2
++#define LINK_UP                    1
++#define LINK_DOWN                  0
++ 
++
++#define IFCONFIG_ETH1_UP   2
++#define IFCONFIG_ETH0_UP   1
++#define IFCONFIG_NOTHING   0
++
++ 
+ static inline int phy_read(struct phy_device *phydev, u32 regnum)
+ {
+-    int val1, val2;
++    static int prev_link_state = LINK_DOWN ;
++	static int prev_ifconfig_state = IFCONFIG_NOTHING;
++	static int transition_table[4][4]= { LINK_DOWN, LINK_UP_IFCONFIG_ETH0_UP, LINK_UP_IFCONFIG_ETH1_UP, LINK_UP_IFCONFIG_ETH0_UP, \
++	                                     LINK_DOWN, LINK_UP, LINK_UP_IFCONFIG_ETH1_UP, LINK_UP_IFCONFIG_ETH1_UP, \
++										 LINK_DOWN, LINK_UP_IFCONFIG_ETH0_UP, LINK_UP, LINK_UP_IFCONFIG_ETH0_UP, \
++										 LINK_DOWN, LINK_UP, LINK_UP, LINK_UP };
++	
++	int cur_link_state, ret_value;
++	
+     if (regnum == MII_BMSR)
+     {
+-        val1 = mdiobus_read(phydev->bus, 1, regnum);   // check if phy1 link is on  (BMSR_LSTATUS)
+-        val2 = mdiobus_read(phydev->bus, 2, regnum);   // check if phy2 link is on  (BMSR_LSTATUS)
+-
+-        return ( ((val1 | val2) & BMSR_LSTATUS) | BMSR_100FULL | BMSR_ANEGCOMPLETE);
++	
++#if 0	
++	    struct ifreq ifr;
++		int sockfd;
++		
++		sockfd = socket(AF_INET,SOCK_DGRAM,0);
++		strncpy(ifr.ifr_name, "eth1", IFNAMSIZ);
++		ioctl(sockfd,SIOCGIFFLAGS, &ifr);
++		ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
++		ioctl(sockfd,SIOCSIFFLAGS, &ifr);
++	    close(sockfd);
++#endif
++	
++        if (mdiobus_read(phydev->bus, 1, regnum) & BMSR_LSTATUS)		// check if phy1 link is on  (BMSR_LSTATUS)
++        {
++           if (mdiobus_read(phydev->bus, 2, regnum) & BMSR_LSTATUS)		// check if phy2 link is on  (BMSR_LSTATUS)
++               cur_link_state = 3;
++		   else   
++              cur_link_state = 1;
++		}
++		else
++		{
++           if (mdiobus_read(phydev->bus, 2, regnum) & BMSR_LSTATUS)		// check if phy2 link is on  (BMSR_LSTATUS)
++               cur_link_state = 2;
++		   else   
++              cur_link_state = 0;		
++		}
++	    
++		ret_value = transition_table[prev_link_state][cur_link_state];
++		prev_link_state = cur_link_state;
++		switch (prev_ifconfig_state)
++		{
++		   case IFCONFIG_NOTHING :
++		     break;
++			 
++		   case IFCONFIG_ETH0_UP :
++		     usermodehelper("eth0");
++		     break;
++			 
++		   case IFCONFIG_ETH1_UP :
++		     usermodehelper("eth1");
++		     break;
++	    }		 
++	    switch (ret_value)
++        {	
++		    case LINK_UP:
++			   prev_ifconfig_state = IFCONFIG_NOTHING;
++               return ( BMSR_LSTATUS | BMSR_100FULL | BMSR_ANEGCOMPLETE);
++			   
++		    case LINK_DOWN:
++			   prev_ifconfig_state = IFCONFIG_NOTHING;
++               return ( BMSR_100FULL | BMSR_ANEGCOMPLETE);
++			   
++			 case  LINK_UP_IFCONFIG_ETH0_UP: 
++			   prev_ifconfig_state = IFCONFIG_ETH0_UP;
++               return ( BMSR_LSTATUS | BMSR_100FULL | BMSR_ANEGCOMPLETE);
++			   
++			 case  LINK_UP_IFCONFIG_ETH1_UP: 
++			   prev_ifconfig_state = IFCONFIG_ETH1_UP;
++               return ( BMSR_LSTATUS | BMSR_100FULL | BMSR_ANEGCOMPLETE);
++		}	   	   
+     }
+-
+ 	return mdiobus_read(phydev->bus, phydev->addr, regnum);
+ }
+ 
+-- 
+1.8.2.3
+
