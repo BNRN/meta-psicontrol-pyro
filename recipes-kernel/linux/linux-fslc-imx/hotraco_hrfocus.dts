@@ -84,7 +84,6 @@
 	};
     
 
-
 	backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm2 0 50000>;
@@ -107,10 +106,10 @@
 	cs-gpios = <&gpio4 24 0>;
 	status = "okay";
 
-	flash: s25fl064 {
+	flash: at26sf081a {
 		#address-cells = <1>;
 		#size-cells = <1>;
-		compatible = "spansion,s25sl064p";
+		compatible = "adesto,at26sf081a";
 		spi-max-frequency = <20000000>;
 		reg = <0>;
         
@@ -143,8 +142,8 @@
 	status = "okay";    
     
     spidev@0x00 {
-        compatible = "spidev";
-        spi-max-frequency = <10000>;
+        compatible = "rohm,dh2228fv";
+        spi-max-frequency = <1000000>;
         reg = <0>;
     };
 };
@@ -233,13 +232,24 @@
             };                        
         };
     };
+    
+	lvds-channel@1 {
+		crtc = "ipu1-di1";
+        status = "disabled";
+	};
 };
 
 
 &dcic1 {
-	dcic_id = <1>;
+	dcic_id = <0>;
 	dcic_mux = "dcic-lvds0";
 	status = "okay";
+};
+
+&dcic2 {
+	dcic_id = <1>;
+	dcic_mux = "dcic-lvds1";
+	status = "disabled";
 };
 
 &usbh1 {
@@ -486,7 +496,7 @@
             MX6QDL_PAD_EIM_D16__ECSPI1_SCLK 0x10051
             MX6QDL_PAD_EIM_D17__ECSPI1_MISO 0x10051
             MX6QDL_PAD_EIM_D18__ECSPI1_MOSI 0x10051
-            MX6QDL_PAD_EIM_D19__GPIO3_IO19  0x80000000
+            MX6QDL_PAD_EIM_D19__GPIO3_IO19  0x1b051
             
             // Touch Control reset
             MX6QDL_PAD_NANDF_RB0__GPIO6_IO10 0x1f0b0

@@ -1,0 +1,26 @@
+From ea874eae2d0277a413d76257a679eb75d9edbd58 Mon Sep 17 00:00:00 2001
+From: Brecht Neyrinck <bnrn@psicontrol.com>
+Date: Thu, 5 Oct 2017 16:04:48 +0200
+Subject: [PATCH] prevent division by zero in ipu pixel clk driver
+
+---
+ drivers/mxc/ipu3/ipu_pixel_clk.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/mxc/ipu3/ipu_pixel_clk.c b/drivers/mxc/ipu3/ipu_pixel_clk.c
+index 66e73dd6284f..1fc8bdc7a3cf 100644
+--- a/drivers/mxc/ipu3/ipu_pixel_clk.c
++++ b/drivers/mxc/ipu3/ipu_pixel_clk.c
+@@ -177,6 +177,9 @@ static int _ipu_pixel_clk_div_set_rate(struct clk_hw *hw, unsigned long rate,
+ 	struct ipu_soc *ipu = ipu_get_soc(di_div->ipu_id);
+ 	u64 div, parent_rate;
+ 	u32 remainder;
++    
++    if (rate == 0)
++        return 0;
+ 
+ 	parent_rate = (unsigned long long)parent_clk_rate * 16;
+ 	div = parent_rate;
+-- 
+2.11.0
+
