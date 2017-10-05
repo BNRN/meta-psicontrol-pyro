@@ -1,7 +1,7 @@
-MACHINE ??= 'petersime-ihmi'
+MACHINE ??= 'hotraco-hrfocus'
 DISTRO ?= 'fslc-x11'
-PACKAGE_CLASSES ?= "package_rpm"
-EXTRA_IMAGE_FEATURES ?= "debug-tweaks"
+PACKAGE_CLASSES ?= "package_ipk"
+EXTRA_IMAGE_FEATURES ?= "debug-tweaks read-only-rootfs package-management"
 USER_CLASSES ?= "buildstats image-mklibs image-prelink"
 PATCHRESOLVE = "noop"
 BB_DISKMON_DIRS = "\
@@ -17,7 +17,10 @@ PACKAGECONFIG_append_pn-qemu-native = " sdl"
 PACKAGECONFIG_append_pn-nativesdk-qemu = " sdl"
 CONF_VERSION = "1"
 
-IMAGE_INSTALL_append += " \ 
+IMAGE_INSTALL_append += " gcc g++ binutils libgcc libgcc-dev libstdc++ libstdc++-dev libstdc++-staticdev \
+    autoconf automake ccache chkconfig glib-networking glibmm \
+    packagegroup-core-buildessential pkgconfig  \
+    boost cmake zlib glib-2.0 packagegroup-fsl-tools-testapps  \  
     ruby \
     cpufrequtils \
     strace \  
@@ -27,6 +30,10 @@ IMAGE_INSTALL_append += " \
     python-misc \
     python-logging \
     python-subprocess \
+    python-distutils \
+    python-email \
+    python-dev \
+    python-pyserial \
     memtester \
     tslib \
     tslib-conf tslib-tests tslib-calibrate \
@@ -34,7 +41,7 @@ IMAGE_INSTALL_append += " \
     mtd-utils \
     iperf3 \
     modprobe-blacklist \
-    eGTouchD \
+    egtouchd \
     mii-reg \
     iproute2 \
     vlan-scripts \
@@ -69,6 +76,9 @@ IMAGE_INSTALL_append += " \
     ttf-dejavu-serif \
     ttf-dejavu-sans \
     xterm \
+    can-utils \
+    dropbear \
+    opkg \
     "
 
 DL_DIR ?= "${BSPDIR}/downloads/"

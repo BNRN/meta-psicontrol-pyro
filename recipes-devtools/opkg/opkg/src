@@ -1,0 +1,5 @@
+src/gz all http://10.0.182.182/petersime-yocto-repo/all
+src/gz cortexa9hf-vfp-neon http://10.0.182.182/petersime-yocto-repo/cortexa9hf-vfp-neon
+src/gz cortexa9hf-vfp-neon-mx6qdl http://10.0.182.182/petersime-yocto-repo/cortexa9hf-vfp-neon-mx6qdl
+src/gz petersime_ihmi http://10.0.182.182/petersime-yocto-repo/petersime_ihmi
+

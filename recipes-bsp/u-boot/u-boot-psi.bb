@@ -20,4 +20,4 @@ do_compile () {
 S = "${WORKDIR}"
 
 UBOOT_MACHINE = "petersime_ihmi"
-COMPATIBLE_MACHINE = "(petersime-ihmi)"
+COMPATIBLE_MACHINE = "(petersime-ihmi|hotraco-hrfocus)"

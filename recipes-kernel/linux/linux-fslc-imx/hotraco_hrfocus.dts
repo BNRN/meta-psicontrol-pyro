@@ -55,6 +55,8 @@
 			regulator-name = "usb_vbus";
 			regulator-min-microvolt = <5000000>;
 			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio3 31 0>;
+			enable-active-high;
 		};
         
         reg_usb_otg_vbus: regulator@1 {
@@ -79,7 +81,9 @@
 		int_clk = <0>;
 		late_init = <0>;
 		status = "okay";
-	};	
+	};
+    
+
 
 	backlight {
 		compatible = "pwm-backlight";
@@ -112,18 +116,14 @@
         
         uboot@400 {
             label = "U-boot";
-            reg = <0x400 0x1FFC00>;        
+            reg = <0x400 0x7FFFC>;        
         };
         
-        image@200000 {
-            label = "Error Image";
-            reg = <0x200000 0x400000>;        
+        scratch@80000 {
+            label = "Scratch area";
+            reg = <0x80000 0x80000>;        
         };
         
-        ubootenv@0x7F0000 {
-            label = "U-boot environment";
-            reg = <0x7F0000 0x10000>;        
-        };
         
 	};
 };
@@ -138,11 +138,15 @@
 
 &ecspi1 {
 	fsl,spi-num-chipselects = <3>;
-	cs-gpios = <&gpio4 9 0>, 
-               <&gpio4 10 0>,
-               <&gpio4 11 0>;
+	cs-gpios = <&gpio3 19 0>;
 	pinctrl-names = "default";
 	status = "okay";    
+    
+    spidev@0x00 {
+        compatible = "spidev";
+        spi-max-frequency = <10000>;
+        reg = <0>;
+    };
 };
 
 
@@ -285,8 +289,8 @@
         reg = <0x68>;
     };
     
-    eeprom: cat24c02@50 {
-        compatible = "cat,24c02";
+    eeprom: cat24c512@50 {
+        compatible = "cat,24c512";
         reg = <0x50>;
         pagesize = <16>;
     };
@@ -443,29 +447,9 @@
     };
 };
 
-#if 0
-&i2c3 {
-    clock-frequency = <100000>;
-    pinctrl-names = "default";
-    pinctrl-0 = <&pinctrl_i2c3_1>;
-    status = "okay";
-        
-    captouch: ilitek@41 {
-        compatible = "ilitek_i2c";
-        reg = <0x41>;
-    };
-    
-    pinctrl_i2c3_1: i2c3grp-1 {
-        fsl,pins = <
-            MX6QDL_PAD_EIM_D17__I2C3_SCL 0x4001b8b1
-            MX6QDL_PAD_EIM_D18__I2C3_SDA 0x4001b8b1
-        >;
-    };
-};
-#endif
 
 
-&flexcan2 {  
+&can2 {  
     pinctrl-names = "default";
     pinctrl-0 = <&pinctrl_flexcan2_3>;
     status = "okay"; 
@@ -473,7 +457,7 @@
 
 
 
-&flexcan1 {    
+&can1 {    
     pinctrl-names = "default";
     pinctrl-0 = <&pinctrl_flexcan1_3>;
     status = "okay";     
@@ -490,7 +474,7 @@
             // LEDS
                 MX6QDL_PAD_NANDF_D0__GPIO2_IO00 0x80000000
                 MX6QDL_PAD_NANDF_D5__GPIO2_IO05 0x80000000
-            // SPI            
+            // SPI 2        
             MX6QDL_PAD_DISP0_DAT17__ECSPI2_MISO 0x10051
             MX6QDL_PAD_DISP0_DAT16__ECSPI2_MOSI 0x10051
             MX6QDL_PAD_DISP0_DAT19__ECSPI2_SCLK 0x10051
@@ -498,15 +482,24 @@
                         
             MX6QDL_PAD_DISP0_DAT3__GPIO4_IO24 0x80000000
             
+            // SPI 3
+            MX6QDL_PAD_EIM_D16__ECSPI1_SCLK 0x10051
+            MX6QDL_PAD_EIM_D17__ECSPI1_MISO 0x10051
+            MX6QDL_PAD_EIM_D18__ECSPI1_MOSI 0x10051
+            MX6QDL_PAD_EIM_D19__GPIO3_IO19  0x80000000
+            
             // Touch Control reset
             MX6QDL_PAD_NANDF_RB0__GPIO6_IO10 0x1f0b0
+            
+            // USB HOST POWER ENABLE
+            MX6QDL_PAD_EIM_D31__GPIO3_IO31 0x80000000
             
             
 			>;
 		};
-	};      
+	};    
 
-    flexcan1 {
+    can1 {
 
         pinctrl_flexcan1_3: flexcan1grp-3 {
             fsl,pins = <
@@ -517,7 +510,7 @@
 
     };
     
-    flexcan2 {
+    can2 {
         pinctrl_flexcan2_3: flexcan2grp-3 {
             fsl,pins = <
                 MX6QDL_PAD_KEY_COL4__FLEXCAN2_TX 0x1b0b1 
