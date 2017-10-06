@@ -19,6 +19,8 @@
 / {
 	aliases {
 		mxcfb0 = &mxcfb1;
+		i2c1 = &i2c1;
+		i2c0 = &i2c2;
 	};
 
 	memory {
@@ -30,7 +32,7 @@
         status = "okay";
 
 		dev-led-1 {
-            label = "Heartbeat";
+            label = "Heartbeat";  
 			gpios = <&gpio2 0 0>;
             linux,default-trigger = "heartbeat";
             default-state = "on";
@@ -84,9 +86,9 @@
 	};
     
 
-	backlight {
+	backlight_lvds {
 		compatible = "pwm-backlight";
-		pwms = <&pwm2 0 50000>;
+		pwms = <&pwm2 0 2000000>;
 		brightness-levels = <0 4 8 16 32 64 128 255>;
 		default-brightness-level = <5>;
 	};
@@ -109,7 +111,7 @@
 	flash: at26sf081a {
 		#address-cells = <1>;
 		#size-cells = <1>;
-		compatible = "adesto,at26sf081a";
+		compatible = "spansion,s25sl064p";
 		spi-max-frequency = <20000000>;
 		reg = <0>;
         

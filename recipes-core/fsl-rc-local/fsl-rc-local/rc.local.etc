@@ -1,3 +1,4 @@
+
 #!/bin/sh -e
 #
 # rc.local
@@ -14,17 +15,15 @@
 # start the touchscreen driver
 /usr/bin/eGTouchD &
 
-# make sure fonts are available
-ln -s /usr/share/fonts /usr/lib/fonts
 
 # prevent the screen from going black
 echo -e '\033[9;0]' > /dev/tty1
 
 #set backlight full screen
-echo 7 > /sys/class/backlight/backlight/brightness
+echo 7 > /sys/class/backlight/backlight_lvds/brightness
 
 # wait to make sure the touchscreen driver is fully started and provides /dev/input/touchscreen0
-sleep 20s
+sleep 5s
 
 # hide the mouse cursor
 export QT_QPA_EGLFS_HIDECURSOR=1
@@ -40,6 +39,21 @@ export TSLIB_TSDEVICE=/dev/input/touchscreen0
 # launch the Qt5 application using the OpenGL ES 2.0 driver and the Tslib plugin
 #cd /usr/share/qtdemo-10inch-1.0
 #./PsiControlDemo  -platform eglfs -plugin evdevtouch:/dev/input/event0 &
+
+mount -o remount,rw /
+
+# make sure fonts are available
+ln -s /usr/share/fonts/truetype /usr/lib/fonts || true
+
+#symlinks for hotraco application
+ln -s /dev/spidev0.0 /dev/spidev1.0
+mkdir -p /dev/disk/by-path/
+ln -s /dev/mmcblk2p1 /dev/disk/by-path/platform-2190000.usdhc-part1
+ln -s /dev/mmcblk3rpmb /dev/mmcblk2rpmb
+
+mount -o remount,ro /
+
+
 
 export DISPLAY=:0
 Qt5_CinematicExperience -platform xcb -plugin Tslib > /tmp/cinematicexperience.log 2>&1 &
