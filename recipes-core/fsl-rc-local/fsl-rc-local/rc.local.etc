@@ -23,7 +23,7 @@ echo -e '\033[9;0]' > /dev/tty1
 echo 7 > /sys/class/backlight/backlight_lvds/brightness
 
 # wait to make sure the touchscreen driver is fully started and provides /dev/input/touchscreen0
-sleep 5s
+sleep 20s
 
 # hide the mouse cursor
 export QT_QPA_EGLFS_HIDECURSOR=1
