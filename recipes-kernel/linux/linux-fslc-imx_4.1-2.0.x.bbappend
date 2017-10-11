@@ -1,4 +1,4 @@
-COMPATIBLE_MACHINE = "(petersime-ihmi|hotraco-hrfocus)"
+COMPATIBLE_MACHINE = "(petersime-ihmi|hotraco-hrfocus|petersime-ihmi-quad)"
 
 
 # tell yocto to find files here to copy in the workdir

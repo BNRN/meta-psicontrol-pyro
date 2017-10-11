@@ -1,3 +1,4 @@
 # /etc/network/interfaces -- configuration file for ifup(8), ifdown(8)
  
-# not configured here
+auto eth0
+iface eth0 inet dhcp

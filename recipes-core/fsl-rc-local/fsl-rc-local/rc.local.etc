@@ -43,7 +43,7 @@ export TSLIB_TSDEVICE=/dev/input/touchscreen0
 mount -o remount,rw /
 
 # make sure fonts are available
-ln -s /usr/share/fonts/truetype /usr/lib/fonts || true
+ln -s /ejre1.8.0/lib/fonts /usr/lib/fonts || true
 
 #symlinks for hotraco application
 ln -s /dev/spidev0.0 /dev/spidev1.0
@@ -51,11 +51,13 @@ mkdir -p /dev/disk/by-path/
 ln -s /dev/mmcblk2p1 /dev/disk/by-path/platform-2190000.usdhc-part1
 ln -s /dev/mmcblk3rpmb /dev/mmcblk2rpmb
 
-mount -o remount,ro /
+#mount -o remount,ro /
 
 
 
 export DISPLAY=:0
 Qt5_CinematicExperience -platform xcb -plugin Tslib > /tmp/cinematicexperience.log 2>&1 &
+
+/PDPPC/PDPPC.sh &
 
 exit 0
